@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <h1 data-i18n="admin_panel_title">ระบบจัดการตู้กด</h1>
+    <div class="sub" data-i18n="admin_login">สำหรับเจ้าหน้าที่</div>
+    <form id="login-form">
+      <div class="field">
+        <label data-i18n="username">ชื่อผู้ใช้</label>
+        <input type="text" id="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label data-i18n="password">รหัสผ่าน</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-red" type="submit" data-i18n="login">เข้าสู่ระบบ</button>
+      <div class="error-text" id="error-text"></div>
+    </form>
+    <div class="lang-mini">
+      <button id="lang-th" data-lang="th">TH</button>
+      <button id="lang-en" data-lang="en">EN</button>
+    </div>
+  </div>
+</div>
+<script src="../js/i18n.js"></script>
+<script src="../js/api.js"></script>
+<script src="js/admin-login.js"></script>
+</body>
+</html>

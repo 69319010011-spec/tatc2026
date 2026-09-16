@@ -1,0 +1,50 @@
+const API_BASE = window.API_BASE || 'http://localhost:4000/api';
+
+async function apiRequest(path, options = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+  const token = localStorage.getItem('admin_token');
+  if (token && path.startsWith('/admin')) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    data = null;
+  }
+  if (!res.ok) {
+    const err = new Error((data && data.error) || `Request failed (${res.status})`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+const api = {
+  getMachine: (machineCode) => apiRequest(`/kiosk/machines/${machineCode}`),
+  checkout: (payload) => apiRequest('/kiosk/checkout', { method: 'POST', body: JSON.stringify(payload) }),
+  adminLogin: (username, password) =>
+    apiRequest('/auth/admin/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  adminDashboard: () => apiRequest('/admin/dashboard'),
+  adminSalesDaily: (days = 14) => apiRequest(`/admin/analytics/sales-daily?days=${days}`),
+  adminTopProducts: (limit = 8) => apiRequest(`/admin/analytics/top-products?limit=${limit}`),
+  adminSalesByCategory: () => apiRequest('/admin/analytics/sales-by-category'),
+  adminProducts: () => apiRequest('/admin/products'),
+  adminCreateProduct: (payload) => apiRequest('/admin/products', { method: 'POST', body: JSON.stringify(payload) }),
+  adminUpdateProduct: (id, payload) => apiRequest(`/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  adminDeleteProduct: (id) => apiRequest(`/admin/products/${id}`, { method: 'DELETE' }),
+  adminCategories: () => apiRequest('/admin/categories'),
+  adminMachines: () => apiRequest('/admin/machines'),
+  adminSlots: (machineId) => apiRequest(`/admin/machines/${machineId}/slots`),
+  adminUpdateSlot: (slotId, payload) => apiRequest(`/admin/slots/${slotId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  adminRestock: (slotId, payload) => apiRequest(`/admin/slots/${slotId}/restock`, { method: 'POST', body: JSON.stringify(payload) }),
+  adminAdjustStock: (slotId, delta) => apiRequest(`/admin/slots/${slotId}/adjust`, { method: 'POST', body: JSON.stringify({ delta }) }),
+  adminOrders: (params = '') => apiRequest(`/admin/orders${params}`),
+  adminAlerts: (status) => apiRequest(`/admin/alerts${status ? `?status=${status}` : ''}`),
+  adminUpdateAlert: (id, status) => apiRequest(`/admin/alerts/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  adminMaintenance: () => apiRequest('/admin/maintenance'),
+  adminCreateMaintenance: (payload) => apiRequest('/admin/maintenance', { method: 'POST', body: JSON.stringify(payload) }),
+  adminResolveMaintenance: (id) => apiRequest(`/admin/maintenance/${id}/resolve`, { method: 'PUT' }),
+};

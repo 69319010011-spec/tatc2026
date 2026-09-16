@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vending Kiosk</title>
+<link rel="stylesheet" href="css/kiosk.css">
+</head>
+<body>
+<div class="kiosk-frame">
+  <header class="kiosk-header">
+    <div class="brand"><span class="logo-dot">V</span><span data-i18n="app_title">ตู้กดอัตโนมัติ</span></div>
+    <div class="header-actions">
+      <div class="lang-toggle">
+        <button id="lang-th" data-lang="th">TH</button>
+        <button id="lang-en" data-lang="en">EN</button>
+      </div>
+      <button class="icon-btn" id="help-btn" title="Help">?</button>
+    </div>
+  </header>
+
+  <div class="kiosk-body">
+    <nav class="category-rail" id="category-rail"></nav>
+    <main class="product-area">
+      <h2 id="category-title">-</h2>
+      <div class="product-grid" id="product-grid"></div>
+    </main>
+  </div>
+
+  <footer class="kiosk-footer">
+    <div class="footer-left">
+      <button class="round-action" id="start-over-btn">
+        <span class="circle">&#8635;</span>
+        <span class="label" data-i18n="start_over">เริ่มใหม่</span>
+      </button>
+    </div>
+    <div class="footer-right">
+      <button class="cart-btn" id="open-cart-btn">
+        <span data-i18n="checkout">ชำระเงิน</span>
+        <span id="footer-total">0.00</span>
+        <span class="cart-count" id="cart-count">0</span>
+      </button>
+    </div>
+  </footer>
+</div>
+
+<!-- Cart / Checkout overlay -->
+<div class="overlay" id="cart-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <h3 data-i18n="cart_title">ตะกร้าสินค้า</h3>
+      <button id="close-cart-btn">&times;</button>
+    </div>
+    <div id="drawer-body">
+      <div class="cart-list" id="cart-list"></div>
+      <div class="drawer-footer">
+        <div class="total-row">
+          <span data-i18n="total">รวม</span>
+          <span class="amount" id="drawer-total">0.00</span>
+        </div>
+        <button class="btn-primary" id="pay-btn" data-i18n="checkout">ชำระเงิน</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment method overlay -->
+<div class="overlay" id="pay-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <h3 data-i18n="pay_title">เลือกวิธีชำระเงิน</h3>
+      <button id="close-pay-btn">&times;</button>
+    </div>
+    <div style="padding:18px;">
+      <div class="pay-methods">
+        <div class="pay-method" data-method="cash"><span class="icon">&#128181;</span><span data-i18n="pay_cash">เงินสด</span></div>
+        <div class="pay-method" data-method="qr"><span class="icon">&#128241;</span><span data-i18n="pay_qr">พร้อมเพย์ / QR</span></div>
+        <div class="pay-method" data-method="card"><span class="icon">&#128179;</span><span data-i18n="pay_card">บัตร</span></div>
+      </div>
+      <button class="btn-primary" id="confirm-pay-btn" data-i18n="pay_confirm" disabled>ยืนยันการชำระเงิน</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status overlay -->
+<div class="overlay" id="status-overlay">
+  <div class="drawer">
+    <div id="status-body" class="status-view"></div>
+  </div>
+</div>
+
+<script src="js/i18n.js"></script>
+<script src="js/api.js"></script>
+<script src="js/kiosk.js"></script>
+</body>
+</html>

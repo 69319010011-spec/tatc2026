@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="sidebar">
+    <div class="brand" data-i18n="admin_panel_title">ระบบจัดการตู้กด</div>
+    <a class="nav-item active" data-section="dashboard" data-i18n="nav_dashboard">ภาพรวม</a>
+    <a class="nav-item" data-section="products" data-i18n="nav_products">สินค้า</a>
+    <a class="nav-item" data-section="slots" data-i18n="nav_slots">ช่องเก็บสินค้า</a>
+    <a class="nav-item" data-section="orders" data-i18n="nav_orders">คำสั่งซื้อ</a>
+    <a class="nav-item" data-section="alerts" data-i18n="nav_alerts">แจ้งเตือน</a>
+    <a class="nav-item" data-section="maintenance" data-i18n="nav_maintenance">ซ่อมบำรุง</a>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h2 id="section-title" data-i18n="nav_dashboard">ภาพรวม</h2>
+      <div class="right">
+        <span id="admin-name-label"></span>
+        <div class="lang-mini">
+          <button id="lang-th" data-lang="th">TH</button>
+          <button id="lang-en" data-lang="en">EN</button>
+        </div>
+        <button class="btn-small secondary" id="logout-btn" data-i18n="logout">ออกจากระบบ</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Dashboard -->
+      <section id="section-dashboard">
+        <div class="cards" id="stat-cards"></div>
+
+        <div class="chart-grid">
+          <div class="panel chart-panel" id="chart-panel-daily">
+            <div class="chart-head">
+              <h3 data-i18n="chart_sales_trend">ยอดขาย 14 วันล่าสุด</h3>
+            </div>
+            <div class="chart-wrap viz-root" id="chart-daily"></div>
+          </div>
+          <div class="panel chart-panel" id="chart-panel-category">
+            <div class="chart-head">
+              <h3 data-i18n="chart_sales_by_category">ยอดขายตามหมวดหมู่</h3>
+            </div>
+            <div class="chart-wrap viz-root" id="chart-category"></div>
+          </div>
+        </div>
+
+        <div class="panel chart-panel">
+          <div class="chart-head">
+            <h3 data-i18n="chart_top_products">สินค้าขายดี</h3>
+          </div>
+          <div class="chart-wrap viz-root" id="chart-top-products"></div>
+        </div>
+
+        <div class="panel">
+          <h3 data-i18n="machines_list">รายการตู้</h3>
+          <table>
+            <thead><tr>
+              <th>Code</th><th>Location</th><th data-i18n="status">สถานะ</th>
+            </tr></thead>
+            <tbody id="machines-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Products -->
+      <section id="section-products" style="display:none;">
+        <div class="toolbar">
+          <div></div>
+          <button class="btn-small" id="add-product-btn" data-i18n="add_product">เพิ่มสินค้า</button>
+        </div>
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th>SKU</th><th>TH</th><th>EN</th><th data-i18n="category">หมวดหมู่</th><th data-i18n="price">ราคา</th><th></th>
+            </tr></thead>
+            <tbody id="products-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Slots -->
+      <section id="section-slots" style="display:none;">
+        <div class="toolbar">
+          <div class="field" style="min-width:220px;">
+            <label data-i18n="select_machine">เลือกตู้</label>
+            <select id="slot-machine-select"></select>
+          </div>
+        </div>
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th>Slot</th><th>Product</th><th data-i18n="price">ราคา</th><th data-i18n="stock">สต็อก</th><th></th>
+            </tr></thead>
+            <tbody id="slots-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Orders -->
+      <section id="section-orders" style="display:none;">
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Machine</th><th>Items</th><th data-i18n="price">ราคา</th><th data-i18n="status">สถานะ</th><th>Time</th>
+            </tr></thead>
+            <tbody id="orders-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Alerts -->
+      <section id="section-alerts" style="display:none;">
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th>Machine</th><th>Slot</th><th>Type</th><th>Message</th><th data-i18n="status">สถานะ</th><th></th>
+            </tr></thead>
+            <tbody id="alerts-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Maintenance -->
+      <section id="section-maintenance" style="display:none;">
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th>Machine</th><th>Issue</th><th>Description</th><th>Reported</th><th data-i18n="status">สถานะ</th><th></th>
+            </tr></thead>
+            <tbody id="maintenance-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- Product modal -->
+<div class="modal-overlay" id="product-modal">
+  <div class="modal-box">
+    <h3 id="product-modal-title" data-i18n="add_product">เพิ่มสินค้า</h3>
+    <input type="hidden" id="product-id-input">
+    <div class="form-row">
+      <div class="field"><label>SKU</label><input id="product-sku"></div>
+      <div class="field"><label data-i18n="category">หมวดหมู่</label><select id="product-category"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Name (TH)</label><input id="product-name-th"></div>
+      <div class="field"><label>Name (EN)</label><input id="product-name-en"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label data-i18n="price">ราคา</label><input type="number" step="0.01" id="product-price"></div>
+      <div class="field"><label>Calories</label><input type="number" id="product-calories"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-small secondary" id="product-cancel-btn" data-i18n="cancel">ยกเลิก</button>
+      <button class="btn-small" id="product-save-btn" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Slot assign / restock modal -->
+<div class="modal-overlay" id="slot-modal">
+  <div class="modal-box">
+    <h3 data-i18n="restock">เติมสินค้า</h3>
+    <input type="hidden" id="slot-id-input">
+    <div class="field">
+      <label data-i18n="assign_product">กำหนดสินค้าในช่องนี้</label>
+      <select id="slot-product-select"></select>
+    </div>
+    <div class="form-row">
+      <div class="field"><label data-i18n="qty_to_add">จำนวนที่เติม</label><input type="number" id="slot-qty-input" value="0"></div>
+      <div class="field"><label data-i18n="expiry_date">วันหมดอายุ</label><input type="date" id="slot-expiry-input"></div>
+    </div>
+    <div class="field"><label data-i18n="batch_no">ล็อตสินค้า</label><input id="slot-batch-input"></div>
+    <div class="modal-actions">
+      <button class="btn-small secondary" id="slot-cancel-btn" data-i18n="cancel">ยกเลิก</button>
+      <button class="btn-small" id="slot-save-btn" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/i18n.js"></script>
+<script src="../js/api.js"></script>
+<script src="js/admin-dashboard.js"></script>
+</body>
+</html>
