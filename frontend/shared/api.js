@@ -3,6 +3,10 @@ const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 function mediaUrl(imageUrl) {
   if (!imageUrl) return null;
+  // Bundled sample photographs replace only the original demo icons.
+  // Uploaded product photographs always retain priority.
+  const sample = /^\/icons\/(d-orange|d-milk|m-sandwich|m-pizza)\.svg$/.exec(imageUrl);
+  if (sample) return `/assets/product-photos/${sample[1]}.jpg`;
   return /^https?:\/\//.test(imageUrl) ? imageUrl : `${API_ORIGIN}${imageUrl}`;
 }
 

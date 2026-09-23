@@ -461,12 +461,14 @@ document.getElementById('product-save-btn').addEventListener('click', async () =
     let product;
     if (id) product = await api.adminUpdateProduct(id, payload);
     else product = await api.adminCreateProduct(payload);
+    document.getElementById('product-id-input').value = product.product_id;
 
     if (imageFile) {
       try {
         await api.adminUploadProductImage(product.product_id, imageFile);
       } catch (imgErr) {
         alert(`${t('image_upload_failed')}: ${imgErr.message}`);
+        return;
       }
     }
     document.getElementById('product-modal').classList.remove('show');

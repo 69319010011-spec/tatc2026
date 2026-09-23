@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const pool = require('../db/pool');
 const { authenticateAdmin, requireRole } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { saveProductImage } = require('../storage/product-images');
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -237,11 +238,15 @@ router.delete('/products/:id', SUPER, asyncHandler(async (req, res) => {
 }));
 
 // POST /api/admin/products/:id/image  (multipart/form-data, field name "image")
-router.post('/products/:id/image', SUPER, upload.single('image'), asyncHandler(async (req, res) => {
+router.post('/products/:id/image', SUPER, asyncHandler(async (req, res, next) => {
+  const product = await pool.query('SELECT product_id FROM products WHERE product_id = $1', [req.params.id]);
+  if (!product.rows[0]) return res.status(404).json({ error: 'Product not found' });
+  next();
+}), upload.single('image'), asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded' });
   }
-  const imageUrl = `/uploads/products/${req.file.filename}`;
+  const imageUrl = await saveProductImage(req.file);
   const r = await pool.query(
     'UPDATE products SET image_url = $1 WHERE product_id = $2 RETURNING *',
     [imageUrl, req.params.id]
