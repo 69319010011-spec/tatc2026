@@ -14,7 +14,7 @@ router.use(authenticateAdmin);
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // Role policy: super_admin can do everything; restocker manages slots/stock;
-// technician manages machines and maintenance. Everyone signed in can read.
+// technician manages machines and maintenance. Overview and analytics are super_admin only.
 const SUPER = requireRole('super_admin');
 const STOCK = requireRole('super_admin', 'restocker');
 const TECH = requireRole('super_admin', 'technician');
@@ -113,7 +113,7 @@ router.put('/admins/:id', SUPER, asyncHandler(async (req, res) => {
 }));
 
 // ---------- Dashboard ----------
-router.get('/dashboard', asyncHandler(async (req, res) => {
+router.get('/dashboard', SUPER, asyncHandler(async (req, res) => {
   const [salesToday, openAlerts, lowStock, machines] = await Promise.all([
     pool.query(
       `SELECT COALESCE(SUM(total_amount),0) AS total, COUNT(*) AS orders
@@ -136,7 +136,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
 }));
 
 // ---------- Analytics ----------
-router.get('/analytics/sales-daily', asyncHandler(async (req, res) => {
+router.get('/analytics/sales-daily', SUPER, asyncHandler(async (req, res) => {
   const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 14));
   const r = await pool.query(
     `SELECT gs::date AS date,
@@ -151,7 +151,7 @@ router.get('/analytics/sales-daily', asyncHandler(async (req, res) => {
   res.json(r.rows);
 }));
 
-router.get('/analytics/top-products', asyncHandler(async (req, res) => {
+router.get('/analytics/top-products', SUPER, asyncHandler(async (req, res) => {
   const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 8));
   const r = await pool.query(
     `SELECT p.product_id, p.name_th, p.name_en,
@@ -168,7 +168,7 @@ router.get('/analytics/top-products', asyncHandler(async (req, res) => {
   res.json(r.rows);
 }));
 
-router.get('/analytics/sales-by-category', asyncHandler(async (req, res) => {
+router.get('/analytics/sales-by-category', SUPER, asyncHandler(async (req, res) => {
   const r = await pool.query(
     `SELECT c.category_id, c.code, c.name_th, c.name_en,
             COALESCE(SUM(oi.qty * oi.price_paid), 0) AS revenue

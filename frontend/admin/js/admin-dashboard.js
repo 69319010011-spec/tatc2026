@@ -37,8 +37,9 @@ let productsCache = [];
 let machinesCache = [];
 
 // Mirrors the backend role policy (the server is the real enforcement; this only hides controls).
-let currentRole = adminInfo.role || 'restocker';
+let currentRole = null;
 const PERMS = {
+  viewDashboard: ['super_admin'],
   manageProducts: ['super_admin'],
   createMachine: ['super_admin'],
   editMachine: ['super_admin', 'technician'],
@@ -52,26 +53,31 @@ function can(permission) {
 }
 
 function applyRoleUI() {
+  document.querySelector('[data-section="dashboard"]').style.display = can('viewDashboard') ? '' : 'none';
   document.getElementById('nav-admins').style.display = can('manageAdmins') ? '' : 'none';
   document.getElementById('add-product-btn').style.display = can('manageProducts') ? '' : 'none';
   document.getElementById('add-machine-btn').style.display = can('createMachine') ? '' : 'none';
   document.getElementById('add-slots-btn').style.display = can('expandSlots') ? '' : 'none';
 }
 
-document.querySelectorAll('.nav-item').forEach((el) => {
-  el.addEventListener('click', () => {
+function showSection(section) {
+    if (!currentRole || (section === 'dashboard' && !can('viewDashboard'))) return;
     document.querySelectorAll('.nav-item').forEach((x) => x.classList.remove('active'));
-    el.classList.add('active');
-    const section = el.getAttribute('data-section');
+    document.querySelector(`[data-section="${section}"]`).classList.add('active');
     currentSection = section;
     document.querySelectorAll('[id^="section-"]').forEach((s) => (s.style.display = 'none'));
     document.getElementById(`section-${section}`).style.display = '';
     document.getElementById('section-title').textContent = t(`nav_${section}`);
+    document.getElementById('section-title').setAttribute('data-i18n', `nav_${section}`);
     loadSectionData(section);
-  });
+}
+
+document.querySelectorAll('.nav-item').forEach((el) => {
+  el.addEventListener('click', () => showSection(el.getAttribute('data-section')));
 });
 
 async function loadSectionData(section) {
+  if (!currentRole || (section === 'dashboard' && !can('viewDashboard'))) return;
   try {
     if (section === 'dashboard') await loadDashboard();
     else if (section === 'products') await loadProducts();
@@ -89,6 +95,7 @@ async function loadSectionData(section) {
 
 // ---- Dashboard ----
 async function loadDashboard() {
+  if (!can('viewDashboard')) return;
   const data = await api.adminDashboard();
   const cards = document.getElementById('stat-cards');
   cards.innerHTML = `
@@ -854,7 +861,9 @@ document.getElementById('pw-save-btn').addEventListener('click', async () => {
     document.getElementById('admin-name-label').textContent = me.name;
   } catch (err) {
     if (handleAuthError(err)) return;
+    alert(err.message);
+    return;
   }
   applyRoleUI();
-  loadSectionData('dashboard');
+  showSection(can('viewDashboard') ? 'dashboard' : currentRole === 'technician' ? 'maintenance' : 'slots');
 })();
