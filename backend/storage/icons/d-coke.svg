@@ -1,0 +1,9 @@
+<svg viewBox="0 0 128 160" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="64" cy="34" rx="30" ry="9" fill="#5c1210"/>
+    <rect x="34" y="34" width="60" height="96" fill="#8C1D18"/>
+    <ellipse cx="64" cy="130" rx="30" ry="9" fill="#5c1210"/>
+    <ellipse cx="64" cy="34" rx="30" ry="9" fill="none" stroke="#5c1210" stroke-width="2"/>
+    <rect x="34" y="70" width="60" height="30" fill="rgba(255,255,255,.18)"/>
+    <text x="64" y="90" text-anchor="middle" font-family="Arial, sans-serif" font-size="13.0" font-weight="700" fill="#fff" letter-spacing="0.3">COLA</text>
+    <ellipse cx="64" cy="24" rx="10" ry="4" fill="#cfd3d6"/>
+    </svg>

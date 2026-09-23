@@ -3,7 +3,6 @@
 
 $root = Split-Path -Parent $PSScriptRoot
 $backendDir = Join-Path $root "backend"
-$frontendDir = Join-Path $root "frontend"
 $logDir = Join-Path $root "logs"
 
 if (-not (Test-Path $logDir)) {
@@ -30,7 +29,7 @@ Start-Process -FilePath "node.exe" `
 
 Start-Process -FilePath "node.exe" `
   -ArgumentList "dev-server.js", "5500" `
-  -WorkingDirectory $frontendDir `
+  -WorkingDirectory $PSScriptRoot `
   -WindowStyle Hidden `
   -RedirectStandardOutput (Join-Path $logDir "frontend.log") `
   -RedirectStandardError (Join-Path $logDir "frontend.err.log")

@@ -1,0 +1,6 @@
+<svg viewBox="0 0 128 160" xmlns="http://www.w3.org/2000/svg">
+    <path d="M24 56 h80 v48 h-80 z" fill="#B08A4E"/>
+    <path d="M24 56 l-10 -10 v68 l10 -10 z" fill="#8a6a38"/>
+    <path d="M104 56 l10 -10 v68 l-10 -10 z" fill="#8a6a38"/>
+    <text x="64" y="86" text-anchor="middle" font-family="Arial, sans-serif" font-size="11.0" font-weight="700" fill="#fff" letter-spacing="0.3">GRANOLA</text>
+    </svg>

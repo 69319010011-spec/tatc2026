@@ -1,0 +1,6 @@
+<svg viewBox="0 0 128 160" xmlns="http://www.w3.org/2000/svg">
+    <path d="M26 74 a38 30 0 0 0 76 0 z" fill="#eef3f6"/>
+    <ellipse cx="64" cy="74" rx="38" ry="9" fill="#4c8c3f"/>
+    <ellipse cx="64" cy="120" rx="42" ry="6" fill="rgba(0,0,0,.08)"/>
+    <text x="64" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.0" font-weight="700" fill="#3a3a3a" letter-spacing="0.3">SALAD</text>
+    </svg>

@@ -1,6 +1,9 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const pool = require('../db/pool');
-const { authenticateAdmin } = require('../middleware/auth');
+const { authenticateAdmin, requireRole } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 router.use(authenticateAdmin);
@@ -9,6 +12,105 @@ router.use(authenticateAdmin);
 // Express's error middleware instead of crashing the process (Express 4 does
 // not catch async errors on its own).
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Role policy: super_admin can do everything; restocker manages slots/stock;
+// technician manages machines and maintenance. Everyone signed in can read.
+const SUPER = requireRole('super_admin');
+const STOCK = requireRole('super_admin', 'restocker');
+const TECH = requireRole('super_admin', 'technician');
+
+const ROLES = ['super_admin', 'technician', 'restocker'];
+const MIN_PASSWORD_LENGTH = 8;
+
+// ---------- Current admin ----------
+router.get('/me', (req, res) => res.json(req.admin));
+
+router.post('/me/password', asyncHandler(async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'current_password and new_password are required' });
+  }
+  if (new_password.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+  }
+  const r = await pool.query('SELECT password_hash FROM admins WHERE admin_id = $1', [req.admin.admin_id]);
+  const ok = r.rows[0] && (await bcrypt.compare(current_password, r.rows[0].password_hash));
+  if (!ok) return res.status(400).json({ error: 'Current password is incorrect' });
+
+  const hash = await bcrypt.hash(new_password, 10);
+  await pool.query('UPDATE admins SET password_hash = $1 WHERE admin_id = $2', [hash, req.admin.admin_id]);
+  res.json({ ok: true });
+}));
+
+// ---------- Admin accounts (super_admin only) ----------
+const ADMIN_COLUMNS = 'admin_id, name, username, phone, role, is_active, created_at';
+
+router.get('/admins', SUPER, asyncHandler(async (req, res) => {
+  const r = await pool.query(`SELECT ${ADMIN_COLUMNS} FROM admins ORDER BY admin_id`);
+  res.json(r.rows);
+}));
+
+router.post('/admins', SUPER, asyncHandler(async (req, res) => {
+  const { name, username, phone, role, password, pin_code } = req.body;
+  if (!name || !username || !password) {
+    return res.status(400).json({ error: 'name, username and password are required' });
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+  }
+  if (role && !ROLES.includes(role)) {
+    return res.status(400).json({ error: `role must be one of: ${ROLES.join(', ')}` });
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
+  // pin_code_hash is NOT NULL in the schema; use a random PIN when none is given.
+  const pin = pin_code || String(crypto.randomInt(0, 10000)).padStart(4, '0');
+  const pinHash = await bcrypt.hash(pin, 10);
+  try {
+    const r = await pool.query(
+      `INSERT INTO admins (name, username, phone, role, password_hash, pin_code_hash)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING ${ADMIN_COLUMNS}`,
+      [name, username.trim(), phone || null, role || 'restocker', passwordHash, pinHash]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Username "${username}" already exists` });
+    }
+    throw err;
+  }
+}));
+
+router.put('/admins/:id', SUPER, asyncHandler(async (req, res) => {
+  const targetId = parseInt(req.params.id, 10);
+  const { name, phone, role, is_active, new_password } = req.body;
+
+  if (targetId === req.admin.admin_id && (role !== undefined || is_active === false)) {
+    return res.status(400).json({ error: 'You cannot change your own role or deactivate your own account' });
+  }
+  if (role !== undefined && !ROLES.includes(role)) {
+    return res.status(400).json({ error: `role must be one of: ${ROLES.join(', ')}` });
+  }
+  let passwordHash = null;
+  if (new_password) {
+    if (new_password.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+    }
+    passwordHash = await bcrypt.hash(new_password, 10);
+  }
+
+  const r = await pool.query(
+    `UPDATE admins SET
+       name = COALESCE($1, name),
+       phone = COALESCE($2, phone),
+       role = COALESCE($3::admin_role, role),
+       is_active = COALESCE($4, is_active),
+       password_hash = COALESCE($5, password_hash)
+     WHERE admin_id = $6 RETURNING ${ADMIN_COLUMNS}`,
+    [name || null, phone || null, role || null, is_active ?? null, passwordHash, targetId]
+  );
+  if (!r.rows[0]) return res.status(404).json({ error: 'Admin not found' });
+  res.json(r.rows[0]);
+}));
 
 // ---------- Dashboard ----------
 router.get('/dashboard', asyncHandler(async (req, res) => {
@@ -96,7 +198,7 @@ router.get('/products', asyncHandler(async (req, res) => {
   res.json(r.rows);
 }));
 
-router.post('/products', asyncHandler(async (req, res) => {
+router.post('/products', SUPER, asyncHandler(async (req, res) => {
   const { category_id, sku, name_th, name_en, base_price, calories, shelf_life_days, image_url } = req.body;
   if (!category_id || !name_th || !name_en || base_price == null) {
     return res.status(400).json({ error: 'category_id, name_th, name_en, base_price are required' });
@@ -109,7 +211,7 @@ router.post('/products', asyncHandler(async (req, res) => {
   res.status(201).json(r.rows[0]);
 }));
 
-router.put('/products/:id', asyncHandler(async (req, res) => {
+router.put('/products/:id', SUPER, asyncHandler(async (req, res) => {
   const { category_id, sku, name_th, name_en, base_price, calories, shelf_life_days, image_url, is_active } = req.body;
   const r = await pool.query(
     `UPDATE products SET
@@ -129,15 +231,135 @@ router.put('/products/:id', asyncHandler(async (req, res) => {
   res.json(r.rows[0]);
 }));
 
-router.delete('/products/:id', asyncHandler(async (req, res) => {
+router.delete('/products/:id', SUPER, asyncHandler(async (req, res) => {
   await pool.query('UPDATE products SET is_active = false WHERE product_id = $1', [req.params.id]);
   res.status(204).send();
+}));
+
+// POST /api/admin/products/:id/image  (multipart/form-data, field name "image")
+router.post('/products/:id/image', SUPER, upload.single('image'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file uploaded' });
+  }
+  const imageUrl = `/uploads/products/${req.file.filename}`;
+  const r = await pool.query(
+    'UPDATE products SET image_url = $1 WHERE product_id = $2 RETURNING *',
+    [imageUrl, req.params.id]
+  );
+  if (!r.rows[0]) return res.status(404).json({ error: 'Product not found' });
+  res.json(r.rows[0]);
 }));
 
 // ---------- Machines ----------
 router.get('/machines', asyncHandler(async (req, res) => {
   const r = await pool.query('SELECT * FROM machines ORDER BY machine_id');
   res.json(r.rows);
+}));
+
+// POST /api/admin/machines  { machine_code, location_name, machine_type, lat, lng, total_slots }
+// Creates the machine and auto-generates its empty slots (5 columns per row: A1..A5, B1..B5, ...).
+router.post('/machines', SUPER, asyncHandler(async (req, res) => {
+  const { machine_code, location_name, machine_type, lat, lng, total_slots } = req.body;
+  if (!machine_code || !location_name) {
+    return res.status(400).json({ error: 'machine_code and location_name are required' });
+  }
+  const slotCount = Math.min(200, Math.max(1, parseInt(total_slots, 10) || 24));
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const machineRes = await client.query(
+      `INSERT INTO machines (machine_code, location_name, machine_type, lat, lng, total_slots, status, last_ping_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'online', now()) RETURNING *`,
+      [machine_code, location_name, machine_type || 'mixed', lat || null, lng || null, slotCount]
+    );
+    const machine = machineRes.rows[0];
+
+    const rowLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const perRow = 5;
+    for (let i = 0; i < slotCount; i++) {
+      const rowLetter = rowLetters[Math.floor(i / perRow) % rowLetters.length];
+      const col = (i % perRow) + 1;
+      await client.query(
+        `INSERT INTO machine_slots (machine_id, slot_code, capacity, current_stock, reorder_level)
+         VALUES ($1,$2,10,0,2)`,
+        [machine.machine_id, `${rowLetter}${col}`]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(machine);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `Machine code "${machine_code}" already exists` });
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
+router.put('/machines/:id', TECH, asyncHandler(async (req, res) => {
+  const { location_name, machine_type, status, lat, lng } = req.body;
+  const r = await pool.query(
+    `UPDATE machines SET
+      location_name = COALESCE($1, location_name),
+      machine_type = COALESCE($2, machine_type),
+      status = COALESCE($3, status),
+      lat = COALESCE($4, lat),
+      lng = COALESCE($5, lng)
+     WHERE machine_id = $6 RETURNING *`,
+    [location_name || null, machine_type || null, status || null, lat ?? null, lng ?? null, req.params.id]
+  );
+  if (!r.rows[0]) return res.status(404).json({ error: 'Machine not found' });
+  res.json(r.rows[0]);
+}));
+
+// POST /api/admin/machines/:id/slots  { count }
+// Appends empty slots to an existing machine (e.g. when every slot is full and a
+// new product needs somewhere to go), continuing the same A1..E5 grid pattern.
+router.post('/machines/:id/slots', TECH, asyncHandler(async (req, res) => {
+  const addCount = Math.min(50, Math.max(1, parseInt(req.body.count, 10) || 1));
+  const machineId = req.params.id;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const machineRes = await client.query('SELECT machine_id FROM machines WHERE machine_id = $1 FOR UPDATE', [machineId]);
+    if (!machineRes.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+    const countRes = await client.query('SELECT COUNT(*) FROM machine_slots WHERE machine_id = $1', [machineId]);
+    const startIndex = parseInt(countRes.rows[0].count, 10);
+
+    const rowLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const perRow = 5;
+    const created = [];
+    for (let i = 0; i < addCount; i++) {
+      const idx = startIndex + i;
+      const rowLetter = rowLetters[Math.floor(idx / perRow) % rowLetters.length];
+      const col = (idx % perRow) + 1;
+      const r = await client.query(
+        `INSERT INTO machine_slots (machine_id, slot_code, capacity, current_stock, reorder_level)
+         VALUES ($1,$2,10,0,2) RETURNING *`,
+        [machineId, `${rowLetter}${col}`]
+      );
+      created.push(r.rows[0]);
+    }
+    await client.query('UPDATE machines SET total_slots = total_slots + $1 WHERE machine_id = $2', [addCount, machineId]);
+    await client.query('COMMIT');
+    res.status(201).json(created);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Slot code already exists, try again' });
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 // ---------- Slots ----------
@@ -151,7 +373,7 @@ router.get('/machines/:machineId/slots', asyncHandler(async (req, res) => {
   res.json(r.rows);
 }));
 
-router.put('/slots/:slotId', asyncHandler(async (req, res) => {
+router.put('/slots/:slotId', STOCK, asyncHandler(async (req, res) => {
   const { product_id, price_override, capacity, reorder_level } = req.body;
   const r = await pool.query(
     `UPDATE machine_slots SET
@@ -167,7 +389,7 @@ router.put('/slots/:slotId', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/admin/slots/:slotId/adjust  { delta }  -- quick +1/-1 stock adjust, no batch tracking
-router.post('/slots/:slotId/adjust', asyncHandler(async (req, res) => {
+router.post('/slots/:slotId/adjust', STOCK, asyncHandler(async (req, res) => {
   const delta = parseInt(req.body.delta, 10);
   if (!delta) {
     return res.status(400).json({ error: 'delta must be a non-zero integer' });
@@ -219,7 +441,7 @@ router.post('/slots/:slotId/adjust', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/admin/slots/:slotId/restock  { qty_added, expiry_date, batch_no }
-router.post('/slots/:slotId/restock', asyncHandler(async (req, res) => {
+router.post('/slots/:slotId/restock', STOCK, asyncHandler(async (req, res) => {
   const { qty_added, expiry_date, batch_no } = req.body;
   if (!qty_added || qty_added <= 0) {
     return res.status(400).json({ error: 'qty_added must be a positive number' });
@@ -331,7 +553,7 @@ router.get('/maintenance', asyncHandler(async (req, res) => {
   res.json(r.rows);
 }));
 
-router.post('/maintenance', asyncHandler(async (req, res) => {
+router.post('/maintenance', TECH, asyncHandler(async (req, res) => {
   const { machine_id, issue_type, description } = req.body;
   if (!machine_id || !issue_type) {
     return res.status(400).json({ error: 'machine_id and issue_type are required' });
@@ -344,7 +566,7 @@ router.post('/maintenance', asyncHandler(async (req, res) => {
   res.status(201).json(r.rows[0]);
 }));
 
-router.put('/maintenance/:id/resolve', asyncHandler(async (req, res) => {
+router.put('/maintenance/:id/resolve', TECH, asyncHandler(async (req, res) => {
   const r = await pool.query(
     `UPDATE maintenance_logs SET resolved_at = now() WHERE maintenance_id = $1 RETURNING *`,
     [req.params.id]

@@ -23,6 +23,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     localStorage.setItem('admin_info', JSON.stringify(data.admin));
     window.location.href = 'dashboard.html';
   } catch (err) {
-    errorEl.textContent = t('login_failed');
+    errorEl.textContent = err.status === 429 ? err.message : t('login_failed');
   }
 });

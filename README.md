@@ -1,20 +1,44 @@
 # Vending Machine POS
 
-ระบบตู้กดอัตโนมัติ: หน้าลูกค้า (kiosk POS, ไทย/อังกฤษ) + หน้าแอดมิน (ซ่อนจากลูกค้า, จัดการสินค้า/สต็อก/คำสั่งซื้อ/แจ้งเตือน)
+ระบบตู้กดอัตโนมัติ: หน้าลูกค้า (kiosk POS, ไทย/อังกฤษ) + หน้าแอดมิน (ซ่อนจากลูกค้า, จัดการสินค้า/สต็อก/ตู้/คำสั่งซื้อ/แจ้งเตือน/ผู้ดูแลระบบ)
 
-- `backend/` — Node.js + Express + PostgreSQL API
-- `frontend/` — Plain HTML/CSS/JS: `index.html` (customer kiosk), `admin/` (admin panel, not linked from kiosk)
+## Folder map
+
+```
+Projiue1/
+├── backend/                  Node.js + Express API (port 4000)
+│   ├── server.js             จุดเริ่มต้น: ตั้งค่า middleware, routes, static files
+│   ├── routes/               auth.js (login) · kiosk.js (หน้าลูกค้า/ชำระเงิน) · admin.js (หลังบ้านทั้งหมด)
+│   ├── middleware/           auth.js (JWT + สิทธิ์ตาม role) · upload.js (อัปโหลดรูป)
+│   ├── db/                   schema.sql · seed.js (ข้อมูลตัวอย่าง) · pool.js (ต่อ PostgreSQL/Supabase)
+│   ├── storage/              ไฟล์ที่ API เสิร์ฟ
+│   │   ├── icons/            ไอคอนสินค้า .svg (เสิร์ฟที่ /icons/...)
+│   │   └── uploads/          รูปที่แอดมินอัปโหลด (เสิร์ฟที่ /uploads/..., ไม่เข้า git)
+│   ├── .env                  ความลับ (DATABASE_URL, JWT_SECRET) — ไม่เข้า git
+│   └── .env.example          ตัวอย่างค่าที่ต้องตั้ง
+├── frontend/                 HTML/CSS/JS ล้วน (port 5500)
+│   ├── kiosk/                หน้าลูกค้า (index.html, css/, js/)
+│   ├── admin/                หน้าแอดมิน (login.html, dashboard.html, css/, js/) — ไม่มีลิงก์จากหน้าลูกค้า
+│   └── shared/               api.js (เรียก API) · i18n.js (ข้อความไทย/อังกฤษ) ใช้ร่วมกันทั้งสองหน้า
+├── scripts/
+│   ├── start-servers.ps1     เปิด backend + frontend เป็น background process
+│   └── dev-server.js         static server เล็กๆ สำหรับโฟลเดอร์ frontend
+└── logs/                     log ของเซิร์ฟเวอร์ (ไม่เข้า git)
+```
+
+## URLs
+
+| หน้า | URL |
+|---|---|
+| ลูกค้า (kiosk) | http://127.0.0.1:5500/ (redirect ไป `/kiosk/`) |
+| แอดมิน | http://127.0.0.1:5500/admin/login.html |
+| API | http://localhost:4000/api |
 
 ## Setup
 
 ### 1. Database
 
-Create a PostgreSQL database, then run the schema and seed data:
-
-```powershell
-psql -U postgres -c "CREATE DATABASE vending_pos;"
-psql -U postgres -d vending_pos -f backend/db/schema.sql
-```
+ใช้ PostgreSQL (เครื่องนี้ต่อ Supabase ผ่าน Connection Pooler เพราะ direct connection เป็น IPv6 อย่างเดียว) สร้างตารางด้วย `backend/db/schema.sql`
 
 ### 2. Backend
 
@@ -22,24 +46,35 @@ psql -U postgres -d vending_pos -f backend/db/schema.sql
 cd backend
 npm install
 Copy-Item .env.example .env
-# edit .env -> set DATABASE_URL, JWT_SECRET, CORS_ORIGIN (your frontend URL)
-npm run seed     # creates sample machine/products/slots + admin login
-npm run dev      # or: npm start
+# แก้ .env -> DATABASE_URL, JWT_SECRET, CORS_ORIGIN
+npm run seed     # สร้างตู้/สินค้า/ช่อง/ประวัติขายตัวอย่าง + บัญชีแอดมิน (ล้างข้อมูลเดิมทั้งหมด!)
+npm start
 ```
-
-API runs on `http://localhost:4000` by default.
-
-Seeded admin login: **username `admin` / password `admin123`** (kiosk PIN `1234`, not yet wired to a PIN-unlock screen — the web login uses username/password).
 
 ### 3. Frontend
 
-Serve the `frontend/` folder with any static server (e.g. VS Code "Live Server", or `npx serve frontend`). If your API is not on `http://localhost:4000/api`, set `window.API_BASE` before the other scripts load, or edit `frontend/js/api.js`.
+รัน `node scripts/dev-server.js 5500` (หรือใช้ static server ตัวไหนก็ได้ชี้ไปที่โฟลเดอร์ `frontend/`) ถ้า API ไม่ได้อยู่ที่ `http://localhost:4000/api` ให้ตั้ง `window.API_BASE` ก่อนโหลด script หรือแก้ `frontend/shared/api.js`
 
-- Customer kiosk: `frontend/index.html`
-- Admin (hidden — no link from the kiosk, only reachable via direct URL): `frontend/admin/login.html`
+### รันทั้งสองตัวพร้อมกัน
 
-## Notes / what to extend later
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start-servers.ps1
+```
 
-- Payments are **simulated** — `payment_status` is marked `paid` immediately. Swap in a real PromptPay/QR or card gateway by changing `routes/kiosk.js` checkout logic to create a `pending` order and confirm it via a webhook/callback.
-- `machine_code` is hardcoded to `VM-BKK-001` in `frontend/js/kiosk.js` — for a real multi-machine deployment, pass it via URL/query param or device config instead.
-- Kiosk PIN unlock (separate from admin web login) is stored (`pin_code_hash`) but has no UI yet — add if you want a lightweight in-store staff unlock screen.
+## บัญชีแอดมินเริ่มต้น
+
+`admin` / `admin123` (จาก seed) — **เปลี่ยนรหัสผ่านทันที** ผ่านปุ่ม "เปลี่ยนรหัสผ่าน" ในหน้าแอดมิน
+
+| Role | ทำอะไรได้ |
+|---|---|
+| `super_admin` | ทุกอย่าง รวมถึงจัดการสินค้า/ตู้/บัญชีผู้ดูแล |
+| `restocker` | ดูข้อมูลทั้งหมด, เติม/ลดสต็อก, จัดสินค้าลงช่อง |
+| `technician` | ดูข้อมูลทั้งหมด, แก้สถานะตู้, งานซ่อมบำรุง |
+
+ล็อกอินผิดเกิน 10 ครั้ง/15 นาที (ต่อ IP) จะถูกล็อกชั่วคราว
+
+## Notes
+
+- การชำระเงิน **จำลอง**: `payment_status` เป็น `paid` ทันที ถ้าจะใช้จริงให้ต่อ payment gateway ที่ `backend/routes/kiosk.js`
+- `machine_code` ตั้งตายตัวเป็น `VM-BKK-001` ใน `frontend/kiosk/js/kiosk.js`
+- รูปสินค้า: ถ้าสินค้าไม่มี `image_url` หน้า kiosk จะใช้ emoji แทน

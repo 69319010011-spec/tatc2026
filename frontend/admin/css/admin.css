@@ -82,6 +82,11 @@ tr:hover td { background: #fafafa; }
 .badge.offline { background: #fdeaea; color: var(--red); }
 .badge.maintenance { background: #fff6e0; color: #a76a00; }
 
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 8px; cursor: pointer; }
+.check-row input { width: auto; }
+.badge.role { background: #eef1fb; color: #3b4a9a; }
+.badge.disabled { background: #eee; color: #777; }
+
 .btn-small { border: none; background: var(--red); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 .btn-small.secondary { background: #eee; color: var(--ink); }
 .btn-small:hover { opacity: .85; }
@@ -99,6 +104,16 @@ tr:hover td { background: #fafafa; }
 
 .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .form-row .field { flex: 1; min-width: 150px; margin-bottom: 0; }
+
+.image-upload-row { display: flex; align-items: center; gap: 12px; }
+.image-preview {
+  width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
+  border: 1px solid var(--border); background: var(--bg);
+}
+.product-thumb {
+  width: 32px; height: 32px; border-radius: 6px; object-fit: cover;
+  border: 1px solid var(--border); vertical-align: middle; margin-right: 6px;
+}
 
 .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
 

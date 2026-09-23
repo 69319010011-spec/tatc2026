@@ -1,0 +1,7 @@
+<svg viewBox="0 0 128 160" xmlns="http://www.w3.org/2000/svg">
+
+    <path d="M40 40 h48 l-6 96 h-36 z" fill="#eef3f6"/>
+    <ellipse cx="64" cy="40" rx="24" ry="8" fill="#dfe6ea"/>
+    <path d="M40 40 h48" stroke="rgba(255,255,255,.4)" stroke-width="3"/>
+    <text x="64" y="100" text-anchor="middle" font-family="Arial, sans-serif" font-size="11.0" font-weight="700" fill="#fff" letter-spacing="0.3">YOGURT</text>
+    </svg>

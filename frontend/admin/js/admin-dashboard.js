@@ -36,6 +36,28 @@ let categoriesCache = [];
 let productsCache = [];
 let machinesCache = [];
 
+// Mirrors the backend role policy (the server is the real enforcement; this only hides controls).
+let currentRole = adminInfo.role || 'restocker';
+const PERMS = {
+  manageProducts: ['super_admin'],
+  createMachine: ['super_admin'],
+  editMachine: ['super_admin', 'technician'],
+  expandSlots: ['super_admin', 'technician'],
+  manageSlots: ['super_admin', 'restocker'],
+  manageMaintenance: ['super_admin', 'technician'],
+  manageAdmins: ['super_admin'],
+};
+function can(permission) {
+  return (PERMS[permission] || []).includes(currentRole);
+}
+
+function applyRoleUI() {
+  document.getElementById('nav-admins').style.display = can('manageAdmins') ? '' : 'none';
+  document.getElementById('add-product-btn').style.display = can('manageProducts') ? '' : 'none';
+  document.getElementById('add-machine-btn').style.display = can('createMachine') ? '' : 'none';
+  document.getElementById('add-slots-btn').style.display = can('expandSlots') ? '' : 'none';
+}
+
 document.querySelectorAll('.nav-item').forEach((el) => {
   el.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach((x) => x.classList.remove('active'));
@@ -53,10 +75,12 @@ async function loadSectionData(section) {
   try {
     if (section === 'dashboard') await loadDashboard();
     else if (section === 'products') await loadProducts();
+    else if (section === 'machines') await loadMachinesSection();
     else if (section === 'slots') await loadSlotsSection();
     else if (section === 'orders') await loadOrders();
     else if (section === 'alerts') await loadAlerts();
     else if (section === 'maintenance') await loadMaintenance();
+    else if (section === 'admins') await loadAdminsSection();
   } catch (err) {
     console.error(err);
     if (!handleAuthError(err)) alert(err.message);
@@ -335,13 +359,13 @@ async function loadProducts() {
     .map((p) => `
       <tr>
         <td>${p.sku || '-'}</td>
-        <td>${p.name_th}</td>
+        <td>${p.image_url ? `<img class="product-thumb" src="${mediaUrl(p.image_url)}">` : ''}${p.name_th}</td>
         <td>${p.name_en}</td>
         <td>${getLang() === 'th' ? p.category_name_th : p.category_name_en}</td>
         <td>฿${Number(p.base_price).toFixed(2)}</td>
-        <td>
+        <td>${can('manageProducts') ? `
           <button class="btn-small secondary" data-edit="${p.product_id}">${t('edit')}</button>
-          <button class="btn-small" data-del="${p.product_id}">${t('delete')}</button>
+          <button class="btn-small" data-del="${p.product_id}">${t('delete')}</button>` : ''}
         </td>
       </tr>`)
     .join('') || `<tr><td colspan="6">${t('no_data')}</td></tr>`;
@@ -367,6 +391,10 @@ function fillCategorySelect(select) {
 function openProductModal(productId) {
   fillCategorySelect(document.getElementById('product-category'));
   const modal = document.getElementById('product-modal');
+  const preview = document.getElementById('product-image-preview');
+  const fileInput = document.getElementById('product-image-input');
+  const hint = document.getElementById('product-image-hint');
+  fileInput.value = '';
   document.getElementById('product-modal-title').textContent = productId ? t('edit') : t('add_product');
   if (productId) {
     const p = productsCache.find((x) => x.product_id === productId);
@@ -377,6 +405,13 @@ function openProductModal(productId) {
     document.getElementById('product-name-en').value = p.name_en;
     document.getElementById('product-price').value = p.base_price;
     document.getElementById('product-calories').value = p.calories || '';
+    if (p.image_url) {
+      preview.src = mediaUrl(p.image_url);
+      preview.hidden = false;
+    } else {
+      preview.hidden = true;
+    }
+    hint.textContent = '';
   } else {
     document.getElementById('product-id-input').value = '';
     document.getElementById('product-sku').value = '';
@@ -384,9 +419,20 @@ function openProductModal(productId) {
     document.getElementById('product-name-en').value = '';
     document.getElementById('product-price').value = '';
     document.getElementById('product-calories').value = '';
+    preview.hidden = true;
+    hint.textContent = t('image_save_first');
   }
   modal.classList.add('show');
 }
+
+document.getElementById('product-image-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  const preview = document.getElementById('product-image-preview');
+  if (file) {
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+  }
+});
 
 document.getElementById('add-product-btn').addEventListener('click', () => openProductModal(null));
 document.getElementById('product-cancel-btn').addEventListener('click', () => document.getElementById('product-modal').classList.remove('show'));
@@ -401,11 +447,103 @@ document.getElementById('product-save-btn').addEventListener('click', async () =
     base_price: parseFloat(document.getElementById('product-price').value),
     calories: document.getElementById('product-calories').value ? parseInt(document.getElementById('product-calories').value, 10) : null,
   };
+  const imageFile = document.getElementById('product-image-input').files[0];
+  const saveBtn = document.getElementById('product-save-btn');
+  saveBtn.disabled = true;
   try {
-    if (id) await api.adminUpdateProduct(id, payload);
-    else await api.adminCreateProduct(payload);
+    let product;
+    if (id) product = await api.adminUpdateProduct(id, payload);
+    else product = await api.adminCreateProduct(payload);
+
+    if (imageFile) {
+      try {
+        await api.adminUploadProductImage(product.product_id, imageFile);
+      } catch (imgErr) {
+        alert(`${t('image_upload_failed')}: ${imgErr.message}`);
+      }
+    }
     document.getElementById('product-modal').classList.remove('show');
     loadProducts();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ---- Machines ----
+async function loadMachinesSection() {
+  machinesCache = await api.adminMachines();
+  const body = document.getElementById('machines-manage-table-body');
+  body.innerHTML = machinesCache
+    .map((m) => `
+      <tr>
+        <td>${m.machine_code}</td>
+        <td>${m.location_name}</td>
+        <td>${t('machine_type_' + m.machine_type)}</td>
+        <td><span class="badge ${m.status}">${t('status_' + m.status)}</span></td>
+        <td>${can('editMachine') ? `<button class="btn-small secondary" data-edit-machine="${m.machine_id}">${t('edit')}</button>` : ''}</td>
+      </tr>`)
+    .join('') || `<tr><td colspan="5">${t('no_data')}</td></tr>`;
+
+  body.querySelectorAll('[data-edit-machine]').forEach((btn) =>
+    btn.addEventListener('click', () => openMachineModal(parseInt(btn.getAttribute('data-edit-machine'), 10)))
+  );
+}
+
+function openMachineModal(machineId) {
+  const modal = document.getElementById('machine-modal');
+  const statusField = document.getElementById('machine-status-field');
+  const slotsField = document.getElementById('machine-slots-field');
+  const codeInput = document.getElementById('machine-code-input');
+
+  if (machineId) {
+    const m = machinesCache.find((x) => x.machine_id === machineId);
+    document.getElementById('machine-modal-title').textContent = t('edit');
+    document.getElementById('machine-id-input').value = m.machine_id;
+    codeInput.value = m.machine_code;
+    codeInput.disabled = true;
+    document.getElementById('machine-location-input').value = m.location_name;
+    document.getElementById('machine-type-input').value = m.machine_type;
+    document.getElementById('machine-status-input').value = m.status;
+    statusField.style.display = '';
+    slotsField.style.display = 'none';
+  } else {
+    document.getElementById('machine-modal-title').textContent = t('add_machine');
+    document.getElementById('machine-id-input').value = '';
+    codeInput.value = '';
+    codeInput.disabled = false;
+    document.getElementById('machine-location-input').value = '';
+    document.getElementById('machine-type-input').value = 'mixed';
+    document.getElementById('machine-slots-input').value = 24;
+    statusField.style.display = 'none';
+    slotsField.style.display = '';
+  }
+  modal.classList.add('show');
+}
+
+document.getElementById('add-machine-btn').addEventListener('click', () => openMachineModal(null));
+document.getElementById('machine-cancel-btn').addEventListener('click', () => document.getElementById('machine-modal').classList.remove('show'));
+
+document.getElementById('machine-save-btn').addEventListener('click', async () => {
+  const id = document.getElementById('machine-id-input').value;
+  try {
+    if (id) {
+      await api.adminUpdateMachine(id, {
+        location_name: document.getElementById('machine-location-input').value,
+        machine_type: document.getElementById('machine-type-input').value,
+        status: document.getElementById('machine-status-input').value,
+      });
+    } else {
+      await api.adminCreateMachine({
+        machine_code: document.getElementById('machine-code-input').value.trim(),
+        location_name: document.getElementById('machine-location-input').value,
+        machine_type: document.getElementById('machine-type-input').value,
+        total_slots: parseInt(document.getElementById('machine-slots-input').value, 10) || 24,
+      });
+    }
+    document.getElementById('machine-modal').classList.remove('show');
+    loadMachinesSection();
   } catch (err) {
     alert(err.message);
   }
@@ -440,12 +578,12 @@ async function loadSlotsTable() {
         <td>฿${s.base_price ? Number(s.price_override || s.base_price).toFixed(2) : '-'}</td>
         <td>
           <div class="qty-stepper-admin">
-            <button class="qty-btn qty-minus" data-adjust="${s.slot_id}" data-delta="-1">&minus;</button>
+            ${can('manageSlots') ? `<button class="qty-btn qty-minus" data-adjust="${s.slot_id}" data-delta="-1">&minus;</button>` : ''}
             <span class="qty-value" data-stock-for="${s.slot_id}">${s.current_stock} / ${s.capacity}</span>
-            <button class="qty-btn qty-plus" data-adjust="${s.slot_id}" data-delta="1">&plus;</button>
+            ${can('manageSlots') ? `<button class="qty-btn qty-plus" data-adjust="${s.slot_id}" data-delta="1">&plus;</button>` : ''}
           </div>
         </td>
-        <td><button class="btn-small secondary" data-slot="${s.slot_id}">${t('restock')}</button></td>
+        <td>${can('manageSlots') ? `<button class="btn-small secondary" data-slot="${s.slot_id}">${t('restock')}</button>` : ''}</td>
       </tr>`)
     .join('') || `<tr><td colspan="5">${t('no_data')}</td></tr>`;
 
@@ -455,7 +593,32 @@ async function loadSlotsTable() {
   body.querySelectorAll('[data-adjust]').forEach((btn) =>
     btn.addEventListener('click', () => adjustSlotStock(btn))
   );
+
+  const hasEmptySlot = currentSlots.some((s) => !s.product_id);
+  document.getElementById('slots-full-notice').style.display = hasEmptySlot ? 'none' : '';
 }
+
+document.getElementById('add-slots-btn').addEventListener('click', () => {
+  document.getElementById('add-slots-count-input').value = 5;
+  document.getElementById('add-slots-modal').classList.add('show');
+});
+document.getElementById('add-slots-cancel-btn').addEventListener('click', () => document.getElementById('add-slots-modal').classList.remove('show'));
+document.getElementById('add-slots-save-btn').addEventListener('click', async () => {
+  const machineId = document.getElementById('slot-machine-select').value;
+  const count = parseInt(document.getElementById('add-slots-count-input').value, 10) || 1;
+  const saveBtn = document.getElementById('add-slots-save-btn');
+  saveBtn.disabled = true;
+  try {
+    await api.adminAddSlots(machineId, count);
+    document.getElementById('add-slots-modal').classList.remove('show');
+    alert(t('slots_added'));
+    loadSlotsTable();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
 
 async function adjustSlotStock(btn) {
   const slotId = btn.getAttribute('data-adjust');
@@ -568,7 +731,7 @@ async function loadMaintenance() {
         <td>${m.description || ''}</td>
         <td>${new Date(m.reported_at).toLocaleString()}</td>
         <td><span class="badge ${m.resolved_at ? 'resolved' : 'open'}">${m.resolved_at ? 'resolved' : 'open'}</span></td>
-        <td>${!m.resolved_at ? `<button class="btn-small" data-resolve-m="${m.maintenance_id}">${t('resolve')}</button>` : ''}</td>
+        <td>${!m.resolved_at && can('manageMaintenance') ? `<button class="btn-small" data-resolve-m="${m.maintenance_id}">${t('resolve')}</button>` : ''}</td>
       </tr>`)
     .join('') || `<tr><td colspan="6">${t('no_data')}</td></tr>`;
 
@@ -577,4 +740,121 @@ async function loadMaintenance() {
   );
 }
 
-loadSectionData('dashboard');
+// ---- Admin accounts (super_admin only) ----
+let adminsCache = [];
+
+async function loadAdminsSection() {
+  adminsCache = await api.adminAdmins();
+  const body = document.getElementById('admins-table-body');
+  body.innerHTML = adminsCache
+    .map((a) => `
+      <tr>
+        <td>${escapeHtml(a.name)} ${a.admin_id === adminInfo.admin_id ? `<small>${t('you_label')}</small>` : ''}</td>
+        <td>${escapeHtml(a.username)}</td>
+        <td><span class="badge role">${t('role_' + a.role)}</span></td>
+        <td><span class="badge ${a.is_active ? 'online' : 'disabled'}">${a.is_active ? t('status_active') : t('status_disabled')}</span></td>
+        <td><button class="btn-small secondary" data-edit-admin="${a.admin_id}">${t('edit')}</button></td>
+      </tr>`)
+    .join('') || `<tr><td colspan="5">${t('no_data')}</td></tr>`;
+
+  body.querySelectorAll('[data-edit-admin]').forEach((btn) =>
+    btn.addEventListener('click', () => openAdminModal(parseInt(btn.getAttribute('data-edit-admin'), 10)))
+  );
+}
+
+function openAdminModal(adminId) {
+  const editing = adminId != null;
+  const a = editing ? adminsCache.find((x) => x.admin_id === adminId) : null;
+  const isSelf = editing && a.admin_id === adminInfo.admin_id;
+
+  document.getElementById('admin-modal-title').textContent = editing ? t('edit') : t('add_admin');
+  document.getElementById('admin-id-input').value = editing ? a.admin_id : '';
+  document.getElementById('admin-name-input').value = editing ? a.name : '';
+  document.getElementById('admin-username-input').value = editing ? a.username : '';
+  document.getElementById('admin-username-input').disabled = editing;
+  document.getElementById('admin-phone-input').value = editing ? (a.phone || '') : '';
+  document.getElementById('admin-role-input').value = editing ? a.role : 'restocker';
+  document.getElementById('admin-role-input').disabled = isSelf;
+  document.getElementById('admin-password-input').value = '';
+  document.getElementById('admin-password-label').textContent = editing ? t('reset_password') : t('password');
+  document.getElementById('admin-active-row').style.display = editing && !isSelf ? '' : 'none';
+  document.getElementById('admin-active-input').checked = editing ? a.is_active : true;
+  document.getElementById('admin-modal').classList.add('show');
+}
+
+document.getElementById('add-admin-btn').addEventListener('click', () => openAdminModal(null));
+document.getElementById('admin-cancel-btn').addEventListener('click', () => document.getElementById('admin-modal').classList.remove('show'));
+
+document.getElementById('admin-save-btn').addEventListener('click', async () => {
+  const id = document.getElementById('admin-id-input').value;
+  const password = document.getElementById('admin-password-input').value;
+  const saveBtn = document.getElementById('admin-save-btn');
+  saveBtn.disabled = true;
+  try {
+    if (id) {
+      const payload = {
+        name: document.getElementById('admin-name-input').value,
+        phone: document.getElementById('admin-phone-input').value,
+      };
+      if (!document.getElementById('admin-role-input').disabled) payload.role = document.getElementById('admin-role-input').value;
+      if (document.getElementById('admin-active-row').style.display !== 'none') payload.is_active = document.getElementById('admin-active-input').checked;
+      if (password) payload.new_password = password;
+      await api.adminUpdateAdmin(id, payload);
+    } else {
+      await api.adminCreateAdmin({
+        name: document.getElementById('admin-name-input').value,
+        username: document.getElementById('admin-username-input').value,
+        phone: document.getElementById('admin-phone-input').value,
+        role: document.getElementById('admin-role-input').value,
+        password,
+      });
+    }
+    document.getElementById('admin-modal').classList.remove('show');
+    loadAdminsSection();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ---- Change own password ----
+document.getElementById('change-password-btn').addEventListener('click', () => {
+  document.getElementById('pw-current-input').value = '';
+  document.getElementById('pw-new-input').value = '';
+  document.getElementById('password-modal').classList.add('show');
+});
+document.getElementById('pw-cancel-btn').addEventListener('click', () => document.getElementById('password-modal').classList.remove('show'));
+document.getElementById('pw-save-btn').addEventListener('click', async () => {
+  const saveBtn = document.getElementById('pw-save-btn');
+  saveBtn.disabled = true;
+  try {
+    await api.adminChangePassword(
+      document.getElementById('pw-current-input').value,
+      document.getElementById('pw-new-input').value
+    );
+    document.getElementById('password-modal').classList.remove('show');
+    alert(t('password_changed'));
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ---- Startup: refresh role from the server (it may have changed), then load ----
+(async function init() {
+  try {
+    const me = await api.adminMe();
+    currentRole = me.role;
+    adminInfo.admin_id = me.admin_id;
+    adminInfo.name = me.name;
+    adminInfo.role = me.role;
+    localStorage.setItem('admin_info', JSON.stringify(adminInfo));
+    document.getElementById('admin-name-label').textContent = me.name;
+  } catch (err) {
+    if (handleAuthError(err)) return;
+  }
+  applyRoleUI();
+  loadSectionData('dashboard');
+})();

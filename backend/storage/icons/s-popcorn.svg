@@ -1,0 +1,8 @@
+<svg viewBox="0 0 128 160" xmlns="http://www.w3.org/2000/svg">
+    <path d="M34 46 h60 l-8 78 h-44 z" fill="#fff8ec"/>
+    <path d="M40 46 l4 78" stroke="#C0392B" stroke-width="10"/>
+    <path d="M64 46 l0 78" stroke="#C0392B" stroke-width="10"/>
+    <path d="M88 46 l-4 78" stroke="#C0392B" stroke-width="10"/>
+    <ellipse cx="64" cy="46" rx="30" ry="7" fill="#fff8ec"/>
+    <text x="64" y="36" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.0" font-weight="700" fill="#3a3a3a" letter-spacing="0.3">POPCORN</text>
+    </svg>

@@ -1,0 +1,6 @@
+<svg viewBox="0 0 128 160" xmlns="http://www.w3.org/2000/svg">
+    <rect x="54" y="10" width="20" height="16" rx="3" fill="#c9a12e"/>
+    <path d="M50 26 h28 v18 q14 10 14 30 v66 q0 8 -8 8 h-40 q-8 0 -8 -8 v-66 q0 -20 14 -30 z" fill="#eef3f6" stroke="#c9d2d8" stroke-width="2"/>
+    <path d="M42 70 h44 v66 q0 8 -8 8 h-28 q-8 0 -8 -8 z" fill="#E8C14A"/>
+    <text x="64" y="125" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.0" font-weight="700" fill="#20303a" letter-spacing="0.3">OIL</text>
+    </svg>

@@ -101,10 +101,11 @@ async function seed() {
     ];
     const prodIds = [];
     for (const [catCode, sku, th, en, price, cal, img] of products) {
+      const imageUrl = img || `/icons/${sku.toLowerCase()}.svg`;
       const r = await client.query(
         `INSERT INTO products (category_id, sku, name_th, name_en, base_price, calories, image_url)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING product_id`,
-        [catIds[catCode], sku, th, en, price, cal, img]
+        [catIds[catCode], sku, th, en, price, cal, imageUrl]
       );
       prodIds.push(r.rows[0].product_id);
     }
@@ -135,12 +136,17 @@ async function seed() {
     for (let day = 13; day >= 0; day--) {
       const ordersThatDay = 3 + Math.floor(Math.random() * 8); // 3-10 orders/day
       for (let i = 0; i < ordersThatDay; i++) {
-        const itemCount = 1 + Math.floor(Math.random() * 3); // 1-3 items
-        const chosen = [];
+        const itemCount = 1 + Math.floor(Math.random() * 3); // 1-3 distinct items per order
+        const chosenBySlot = new Map(); // slot_id -> { slot_id, product_id, price, qty }
         for (let k = 0; k < itemCount; k++) {
-          chosen.push(slots[Math.floor(Math.random() * slots.length)]);
+          const slot = slots[Math.floor(Math.random() * slots.length)];
+          const qtyForThisItem = 1 + Math.floor(Math.random() * 3); // 1-3 units, merged into one line
+          const existing = chosenBySlot.get(slot.slot_id);
+          if (existing) existing.qty += qtyForThisItem;
+          else chosenBySlot.set(slot.slot_id, { ...slot, qty: qtyForThisItem });
         }
-        const total = chosen.reduce((sum, s) => sum + parseFloat(s.price), 0);
+        const chosen = Array.from(chosenBySlot.values());
+        const total = chosen.reduce((sum, s) => sum + parseFloat(s.price) * s.qty, 0);
         const method = paymentMethods[Math.floor(Math.random() * paymentMethods.length)];
         const hour = 7 + Math.floor(Math.random() * 14); // 07:00-21:00
         const minute = Math.floor(Math.random() * 60);
@@ -156,8 +162,8 @@ async function seed() {
         const orderId = orderRes.rows[0].order_id;
         for (const s of chosen) {
           await client.query(
-            `INSERT INTO order_items (order_id, slot_id, product_id, qty, price_paid) VALUES ($1,$2,$3,1,$4)`,
-            [orderId, s.slot_id, s.product_id, s.price]
+            `INSERT INTO order_items (order_id, slot_id, product_id, qty, price_paid) VALUES ($1,$2,$3,$4,$5)`,
+            [orderId, s.slot_id, s.product_id, s.qty, s.price]
           );
         }
       }

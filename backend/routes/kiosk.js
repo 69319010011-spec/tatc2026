@@ -42,10 +42,21 @@ router.get('/machines/:machineCode', async (req, res) => {
 // POST /api/kiosk/checkout
 // body: { machine_code, payment_method, items: [{slot_id, qty}] }
 router.post('/checkout', async (req, res) => {
-  const { machine_code, payment_method, items } = req.body;
-  if (!machine_code || !payment_method || !Array.isArray(items) || items.length === 0) {
+  const { machine_code, payment_method, items: rawItems } = req.body;
+  if (!machine_code || !payment_method || !Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'machine_code, payment_method and items are required' });
   }
+
+  // Merge duplicate slot_id entries into a single line so each product only
+  // ever produces one order_items row (with a combined qty) per order.
+  const mergedBySlot = new Map();
+  for (const item of rawItems) {
+    const qty = Math.max(1, parseInt(item.qty, 10) || 1);
+    const existing = mergedBySlot.get(item.slot_id);
+    if (existing) existing.qty += qty;
+    else mergedBySlot.set(item.slot_id, { slot_id: item.slot_id, qty });
+  }
+  const items = Array.from(mergedBySlot.values());
 
   const client = await pool.connect();
   try {

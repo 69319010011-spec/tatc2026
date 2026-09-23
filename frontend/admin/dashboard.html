@@ -13,10 +13,12 @@
     <div class="brand" data-i18n="admin_panel_title">ระบบจัดการตู้กด</div>
     <a class="nav-item active" data-section="dashboard" data-i18n="nav_dashboard">ภาพรวม</a>
     <a class="nav-item" data-section="products" data-i18n="nav_products">สินค้า</a>
+    <a class="nav-item" data-section="machines" data-i18n="nav_machines">ตู้ทั้งหมด</a>
     <a class="nav-item" data-section="slots" data-i18n="nav_slots">ช่องเก็บสินค้า</a>
     <a class="nav-item" data-section="orders" data-i18n="nav_orders">คำสั่งซื้อ</a>
     <a class="nav-item" data-section="alerts" data-i18n="nav_alerts">แจ้งเตือน</a>
     <a class="nav-item" data-section="maintenance" data-i18n="nav_maintenance">ซ่อมบำรุง</a>
+    <a class="nav-item" data-section="admins" id="nav-admins" data-i18n="nav_admins" style="display:none;">ผู้ดูแลระบบ</a>
   </aside>
 
   <div class="main">
@@ -24,6 +26,7 @@
       <h2 id="section-title" data-i18n="nav_dashboard">ภาพรวม</h2>
       <div class="right">
         <span id="admin-name-label"></span>
+        <button class="btn-small secondary" id="change-password-btn" data-i18n="change_password">เปลี่ยนรหัสผ่าน</button>
         <div class="lang-mini">
           <button id="lang-th" data-lang="th">TH</button>
           <button id="lang-en" data-lang="en">EN</button>
@@ -87,6 +90,22 @@
         </div>
       </section>
 
+      <!-- Machines -->
+      <section id="section-machines" style="display:none;">
+        <div class="toolbar">
+          <div></div>
+          <button class="btn-small" id="add-machine-btn" data-i18n="add_machine">เพิ่มตู้ใหม่</button>
+        </div>
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th data-i18n="machine_code">รหัสตู้</th><th data-i18n="location_name">สถานที่ตั้ง</th><th data-i18n="machine_type">ประเภทตู้</th><th data-i18n="status">สถานะ</th><th></th>
+            </tr></thead>
+            <tbody id="machines-manage-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- Slots -->
       <section id="section-slots" style="display:none;">
         <div class="toolbar">
@@ -94,6 +113,10 @@
             <label data-i18n="select_machine">เลือกตู้</label>
             <select id="slot-machine-select"></select>
           </div>
+          <button class="btn-small" id="add-slots-btn" data-i18n="add_slots">เพิ่มช่องใหม่</button>
+        </div>
+        <div class="panel" id="slots-full-notice" style="display:none; background:var(--warn-soft,#fff6e0); border-color:#f0d78c;">
+          <span data-i18n="slots_full_hint">ช่องเก็บสินค้าเต็มแล้ว กด "เพิ่มช่องใหม่" เพื่อเพิ่มที่ว่างสำหรับสินค้าใหม่</span>
         </div>
         <div class="panel">
           <table>
@@ -125,6 +148,22 @@
               <th>Machine</th><th>Slot</th><th>Type</th><th>Message</th><th data-i18n="status">สถานะ</th><th></th>
             </tr></thead>
             <tbody id="alerts-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Admins -->
+      <section id="section-admins" style="display:none;">
+        <div class="toolbar">
+          <div></div>
+          <button class="btn-small" id="add-admin-btn" data-i18n="add_admin">เพิ่มผู้ดูแล</button>
+        </div>
+        <div class="panel">
+          <table>
+            <thead><tr>
+              <th data-i18n="admin_name">ชื่อ</th><th data-i18n="username">ชื่อผู้ใช้</th><th data-i18n="admin_role">สิทธิ์การใช้งาน</th><th data-i18n="status">สถานะ</th><th></th>
+            </tr></thead>
+            <tbody id="admins-table-body"></tbody>
           </table>
         </div>
       </section>
@@ -162,9 +201,125 @@
       <div class="field"><label data-i18n="price">ราคา</label><input type="number" step="0.01" id="product-price"></div>
       <div class="field"><label>Calories</label><input type="number" id="product-calories"></div>
     </div>
+    <div class="field">
+      <label data-i18n="product_image">รูปภาพสินค้า</label>
+      <div class="image-upload-row">
+        <img id="product-image-preview" class="image-preview" hidden>
+        <input type="file" id="product-image-input" accept="image/jpeg,image/png,image/webp,image/gif">
+      </div>
+      <small id="product-image-hint" style="color:var(--muted);"></small>
+    </div>
     <div class="modal-actions">
       <button class="btn-small secondary" id="product-cancel-btn" data-i18n="cancel">ยกเลิก</button>
       <button class="btn-small" id="product-save-btn" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin account modal -->
+<div class="modal-overlay" id="admin-modal">
+  <div class="modal-box">
+    <h3 id="admin-modal-title" data-i18n="add_admin">เพิ่มผู้ดูแล</h3>
+    <input type="hidden" id="admin-id-input">
+    <div class="form-row">
+      <div class="field"><label data-i18n="admin_name">ชื่อ</label><input id="admin-name-input"></div>
+      <div class="field"><label data-i18n="username">ชื่อผู้ใช้</label><input id="admin-username-input" autocomplete="off"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label data-i18n="admin_phone">เบอร์โทร</label><input id="admin-phone-input"></div>
+      <div class="field">
+        <label data-i18n="admin_role">สิทธิ์การใช้งาน</label>
+        <select id="admin-role-input">
+          <option value="restocker" data-i18n="role_restocker">พนักงานเติมสินค้า</option>
+          <option value="technician" data-i18n="role_technician">ช่างเทคนิค</option>
+          <option value="super_admin" data-i18n="role_super_admin">ผู้ดูแลสูงสุด</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label id="admin-password-label" data-i18n="password">รหัสผ่าน</label>
+      <input type="password" id="admin-password-input" autocomplete="new-password">
+      <small data-i18n="password_min_hint" style="color:var(--muted);">อย่างน้อย 8 ตัวอักษร</small>
+    </div>
+    <label class="check-row" id="admin-active-row" style="display:none;">
+      <input type="checkbox" id="admin-active-input"> <span data-i18n="account_active">เปิดใช้งานบัญชี</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn-small secondary" id="admin-cancel-btn" data-i18n="cancel">ยกเลิก</button>
+      <button class="btn-small" id="admin-save-btn" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change own password modal -->
+<div class="modal-overlay" id="password-modal">
+  <div class="modal-box">
+    <h3 data-i18n="change_password">เปลี่ยนรหัสผ่าน</h3>
+    <div class="field"><label data-i18n="current_password">รหัสผ่านปัจจุบัน</label><input type="password" id="pw-current-input" autocomplete="current-password"></div>
+    <div class="field">
+      <label data-i18n="new_password">รหัสผ่านใหม่</label>
+      <input type="password" id="pw-new-input" autocomplete="new-password">
+      <small data-i18n="password_min_hint" style="color:var(--muted);">อย่างน้อย 8 ตัวอักษร</small>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-small secondary" id="pw-cancel-btn" data-i18n="cancel">ยกเลิก</button>
+      <button class="btn-small" id="pw-save-btn" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Machine modal -->
+<div class="modal-overlay" id="machine-modal">
+  <div class="modal-box">
+    <h3 id="machine-modal-title" data-i18n="add_machine">เพิ่มตู้ใหม่</h3>
+    <input type="hidden" id="machine-id-input">
+    <div class="form-row">
+      <div class="field"><label data-i18n="machine_code">รหัสตู้</label><input id="machine-code-input" placeholder="VM-BKK-002"></div>
+      <div class="field"><label data-i18n="location_name">สถานที่ตั้ง</label><input id="machine-location-input"></div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label data-i18n="machine_type">ประเภทตู้</label>
+        <select id="machine-type-input">
+          <option value="mixed" data-i18n="machine_type_mixed">สินค้าผสม</option>
+          <option value="refrigerated" data-i18n="machine_type_refrigerated">แช่เย็น</option>
+          <option value="ambient" data-i18n="machine_type_ambient">อุณหภูมิห้อง</option>
+        </select>
+      </div>
+      <div class="field" id="machine-status-field" style="display:none;">
+        <label data-i18n="status">สถานะ</label>
+        <select id="machine-status-input">
+          <option value="online" data-i18n="status_online">ออนไลน์</option>
+          <option value="offline" data-i18n="status_offline">ออฟไลน์</option>
+          <option value="maintenance" data-i18n="status_maintenance">ซ่อมบำรุง</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="machine-slots-field">
+      <div class="field">
+        <label data-i18n="total_slots">จำนวนช่องเก็บสินค้า</label>
+        <input type="number" id="machine-slots-input" value="24" min="1" max="200">
+        <small data-i18n="total_slots_hint" style="color:var(--muted);">ใช้ตอนสร้างตู้ใหม่เท่านั้น ระบบจะสร้างช่องว่างให้อัตโนมัติ</small>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-small secondary" id="machine-cancel-btn" data-i18n="cancel">ยกเลิก</button>
+      <button class="btn-small" id="machine-save-btn" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add slots modal -->
+<div class="modal-overlay" id="add-slots-modal">
+  <div class="modal-box">
+    <h3 data-i18n="add_slots">เพิ่มช่องใหม่</h3>
+    <div class="field">
+      <label data-i18n="how_many_slots">จำนวนช่องที่ต้องการเพิ่ม</label>
+      <input type="number" id="add-slots-count-input" value="5" min="1" max="50">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-small secondary" id="add-slots-cancel-btn" data-i18n="cancel">ยกเลิก</button>
+      <button class="btn-small" id="add-slots-save-btn" data-i18n="save">บันทึก</button>
     </div>
   </div>
 </div>
@@ -190,8 +345,8 @@
   </div>
 </div>
 
-<script src="../js/i18n.js"></script>
-<script src="../js/api.js"></script>
+<script src="../shared/i18n.js"></script>
+<script src="../shared/api.js"></script>
 <script src="js/admin-dashboard.js"></script>
 </body>
 </html>
