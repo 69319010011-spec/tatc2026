@@ -19,7 +19,7 @@ Projiue1/
 ├── frontend/                 HTML/CSS/JS ล้วน (port 5500)
 │   ├── kiosk/                หน้าลูกค้า (index.html, css/, js/)
 │   ├── admin/                หน้าแอดมิน (login.html, dashboard.html, css/, js/) — ไม่มีลิงก์จากหน้าลูกค้า
-│   └── shared/               api.js (เรียก API) · i18n.js (ข้อความไทย/อังกฤษ) ใช้ร่วมกันทั้งสองหน้า
+│   └── shared/               config.js (เลือก API URL) · api.js (เรียก API) · i18n.js (ข้อความไทย/อังกฤษ) ใช้ร่วมกันทั้งสองหน้า
 ├── scripts/
 │   ├── start-servers.ps1     เปิด backend + frontend เป็น background process
 │   └── dev-server.js         static server เล็กๆ สำหรับโฟลเดอร์ frontend
@@ -72,6 +72,26 @@ powershell -ExecutionPolicy Bypass -File scripts\start-servers.ps1
 | `technician` | ดูข้อมูลทั้งหมด, แก้สถานะตู้, งานซ่อมบำรุง |
 
 ล็อกอินผิดเกิน 10 ครั้ง/15 นาที (ต่อ IP) จะถูกล็อกชั่วคราว
+
+## Deploy ขึ้นออนไลน์
+
+Backend เป็น Express server ที่รันค้างตลอดเวลา (ไม่ใช่ serverless) เลย deploy แยก 2 ที่:
+
+### Backend → Railway / Render / VPS ใดก็ได้ที่รัน Node.js persistent server ได้
+
+1. สร้างโปรเจกต์ใหม่ ชี้ **Root Directory เป็น `backend`**
+2. ตั้ง environment variables ตาม `backend/.env.example` (DATABASE_URL, JWT_SECRET, JWT_EXPIRES_IN, CORS_ORIGIN)
+   - `CORS_ORIGIN` ให้ใส่ URL ของ frontend บน Vercel (เช่น `https://xxx.vercel.app`) แทน `*`
+3. Start command: `npm start`
+4. รัน `npm run seed` ครั้งเดียวหลัง deploy (ผ่าน shell ของบริการนั้น) เพื่อสร้างข้อมูลตัวอย่าง
+5. รูปที่แอดมินอัปโหลด (`backend/storage/uploads`) เก็บบนดิสก์ของเซิร์ฟเวอร์ — ถ้าบริการที่ใช้ไม่มี persistent disk (redeploy แล้วไฟล์หาย) ต้องย้ายไปเก็บที่ Supabase Storage/S3 แทนในอนาคต
+
+### Frontend → Vercel
+
+1. New Project → **Root Directory ตั้งเป็น `frontend`**
+2. Application Preset: **Other** (ไม่มี build step, ไม่มี framework)
+3. แก้ `frontend/shared/config.js` — เปลี่ยน `PRODUCTION_API_BASE` เป็น URL จริงของ backend ที่ deploy ไว้ (เช่น `https://your-app.up.railway.app/api`) แล้ว commit + push ก่อน deploy
+4. Deploy — `/` จะ redirect ไป `/kiosk/` อัตโนมัติ (ตั้งไว้ใน `frontend/vercel.json`)
 
 ## Notes
 

@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/", "destination": "/kiosk/", "permanent": false },
+    { "source": "/index.html", "destination": "/kiosk/", "permanent": false }
+  ]
+}
