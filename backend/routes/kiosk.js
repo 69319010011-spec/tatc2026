@@ -28,10 +28,29 @@ router.get('/machines/:machineCode', async (req, res) => {
       [machine.machine_id]
     );
 
+    // Expose only ranked product IDs, never sales totals or private analytics.
+    const bestSellersRes = await pool.query(
+      `SELECT oi.product_id
+       FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+       WHERE o.machine_id = $1 AND o.payment_status = 'paid'
+         AND o.created_at >= now() - interval '30 days'
+         AND EXISTS (
+           SELECT 1 FROM machine_slots s
+           JOIN products p ON p.product_id = s.product_id
+           JOIN categories c ON c.category_id = p.category_id
+           WHERE s.machine_id = $1 AND s.product_id = oi.product_id
+             AND s.current_stock > 0 AND p.is_active = true
+             AND c.code IN ('drinks', 'snacks', 'meals', 'healthy')
+         )
+       GROUP BY oi.product_id ORDER BY SUM(oi.qty) DESC, oi.product_id LIMIT 6`,
+      [machine.machine_id]
+    );
+
     res.json({
       machine,
       categories: categoriesRes.rows,
       slots: slotsRes.rows,
+      best_seller_ids: bestSellersRes.rows.map((row) => row.product_id),
     });
   } catch (err) {
     console.error(err);

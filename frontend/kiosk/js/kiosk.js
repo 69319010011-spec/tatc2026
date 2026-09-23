@@ -38,6 +38,8 @@ const state = {
   machine: null,
   categories: [],
   slots: [],
+  bestSellerIds: [],
+  searchQuery: '',
   currentCategoryCode: null,
   cart: [], // { slot_id, product_id, name_th, name_en, price, qty, categoryCode }
 };
@@ -55,6 +57,112 @@ function productVisualHtml(item, className) {
     return `<img class="${className}" src="${mediaUrl(item.image_url)}" alt="">`;
   }
   return `<div class="${className}">${productEmoji(item)}</div>`;
+}
+
+function escapeText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+let featuredIndex = 0;
+let featuredItems = [];
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+let featuredPaused = reducedMotion.matches;
+let featuredHover = false;
+
+function renderFeatured() {
+  const result = KioskCatalog.featured(state.slots, state.categories, state.bestSellerIds);
+  featuredItems = result.items;
+  featuredIndex = Math.min(featuredIndex, Math.max(0, featuredItems.length - 1));
+  const section = document.getElementById('featured');
+  section.hidden = !featuredItems.length || !!state.searchQuery.trim();
+  document.getElementById('featured-heading').textContent = t(result.bestSellers ? 'best_sellers' : 'featured_menu');
+  document.getElementById('featured-subtitle').textContent = t(result.bestSellers ? 'best_sellers_hint' : 'featured_hint');
+  const track = document.getElementById('featured-track');
+  track.replaceChildren();
+  featuredItems.forEach((slot, index) => {
+    const slide = document.createElement('div');
+    slide.className = 'featured-slide';
+    slide.setAttribute('role', 'group');
+    slide.setAttribute('aria-label', `${index + 1} / ${featuredItems.length}`);
+    const visual = document.createElement(slot.image_url ? 'img' : 'div');
+    visual.className = 'featured-image';
+    if (slot.image_url) {
+      visual.src = mediaUrl(slot.image_url);
+      visual.alt = localizedName(slot);
+      visual.addEventListener('error', () => {
+        const fallback = document.createElement('div');
+        fallback.className = 'featured-image';
+        fallback.textContent = productEmoji(slot);
+        visual.replaceWith(fallback);
+      }, { once: true });
+    } else visual.textContent = productEmoji(slot);
+    const details = document.createElement('div');
+    details.className = 'featured-details';
+    details.innerHTML = `<h3>${escapeText(localizedName(slot))}</h3><p class="featured-price">฿${money(slot.price)}</p>`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'featured-add';
+    button.textContent = t('add_to_cart');
+    button.addEventListener('click', () => addToCart(slot));
+    // The image and named action both select the displayed product.
+    const imageButton = document.createElement('button');
+    imageButton.type = 'button';
+    imageButton.className = 'featured-image-button';
+    imageButton.setAttribute('aria-label', `${t('add_to_cart')} ${localizedName(slot)}`);
+    imageButton.appendChild(visual);
+    imageButton.addEventListener('click', () => addToCart(slot));
+    details.appendChild(button);
+    slide.append(imageButton, details);
+    track.appendChild(slide);
+  });
+  document.getElementById('featured-prev').setAttribute('aria-label', t('previous_slide'));
+  document.getElementById('featured-next').setAttribute('aria-label', t('next_slide'));
+  updateFeatured();
+}
+
+function updateFeatured() {
+  document.querySelectorAll('.featured-slide').forEach((slide, index) => { slide.hidden = index !== featuredIndex; });
+  document.getElementById('featured-position').textContent = `${featuredIndex + 1} / ${featuredItems.length}`;
+  document.getElementById('featured-pause').textContent = t(featuredPaused ? 'play_slides' : 'pause_slides');
+  for (const id of ['featured-prev', 'featured-next', 'featured-pause']) {
+    document.getElementById(id).disabled = featuredItems.length < 2;
+  }
+}
+
+function moveFeatured(delta) {
+  if (featuredItems.length < 2) return;
+  featuredIndex = (featuredIndex + delta + featuredItems.length) % featuredItems.length;
+  updateFeatured();
+}
+
+function setupDiscovery() {
+  const input = document.getElementById('product-search');
+  input.addEventListener('input', () => {
+    state.searchQuery = input.value;
+    renderProducts();
+    renderCategories();
+    document.getElementById('featured').hidden = !!state.searchQuery.trim() || !featuredItems.length;
+  });
+  document.getElementById('clear-search').addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+  });
+  document.getElementById('featured-prev').addEventListener('click', () => moveFeatured(-1));
+  document.getElementById('featured-next').addEventListener('click', () => moveFeatured(1));
+  document.getElementById('featured-pause').addEventListener('click', () => {
+    featuredPaused = !featuredPaused;
+    updateFeatured();
+  });
+  const section = document.getElementById('featured');
+  section.addEventListener('mouseenter', () => { featuredHover = true; });
+  section.addEventListener('mouseleave', () => { featuredHover = false; });
+  reducedMotion.addEventListener('change', (e) => { if (e.matches) { featuredPaused = true; updateFeatured(); } });
+  setInterval(() => {
+    if (featuredPaused || featuredHover || document.hidden || section.hidden ||
+        section.contains(document.activeElement) || document.querySelector('.overlay.show')) return;
+    moveFeatured(1);
+  }, 5000);
 }
 
 function money(n) {
@@ -108,11 +216,13 @@ async function loadMachine() {
   state.machine = data.machine;
   state.categories = data.categories;
   state.slots = data.slots;
+  state.bestSellerIds = data.best_seller_ids || [];
   if (!state.currentCategoryCode && state.categories.length) {
     state.currentCategoryCode = state.categories[0].code;
   }
   renderCategories();
   renderProducts();
+  renderFeatured();
 }
 
 function renderCategories() {
@@ -121,13 +231,16 @@ function renderCategories() {
   state.categories.forEach((cat) => {
     const color = categoryColor(cat.code);
     const btn = document.createElement('button');
-    btn.className = 'category-btn' + (cat.code === state.currentCategoryCode ? ' active' : '');
+    btn.className = 'category-btn' + (!state.searchQuery.trim() && cat.code === state.currentCategoryCode ? ' active' : '');
     btn.style.setProperty('--cat-accent', color.accent);
     btn.style.setProperty('--cat-deep', color.deep);
     btn.innerHTML = `<span class="cat-icon">${categoryEmoji(cat.code)}</span><span>${getLang() === 'th' ? cat.name_th : cat.name_en}</span>`;
     btn.addEventListener('click', (e) => {
       addRipple(btn, e, 'rgba(255,255,255,0.35)');
       state.currentCategoryCode = cat.code;
+      state.searchQuery = '';
+      document.getElementById('product-search').value = '';
+      document.getElementById('featured').hidden = !featuredItems.length;
       renderCategories();
       renderProducts();
     });
@@ -144,7 +257,8 @@ function slotsForCurrentCategory() {
 function renderProducts() {
   const title = document.getElementById('category-title');
   const cat = state.categories.find((c) => c.code === state.currentCategoryCode);
-  title.textContent = cat ? `${categoryEmoji(cat.code)} ${getLang() === 'th' ? cat.name_th : cat.name_en}` : '';
+  const searching = !!state.searchQuery.trim();
+  title.textContent = searching ? t('search_results') : cat ? `${categoryEmoji(cat.code)} ${getLang() === 'th' ? cat.name_th : cat.name_en}` : '';
 
   const color = categoryColor(state.currentCategoryCode);
   const area = document.getElementById('product-area');
@@ -154,7 +268,11 @@ function renderProducts() {
 
   const grid = document.getElementById('product-grid');
   grid.innerHTML = '';
-  const slots = slotsForCurrentCategory();
+  const slots = searching ? KioskCatalog.search(state.slots, state.searchQuery) : slotsForCurrentCategory();
+  document.getElementById('clear-search').hidden = !state.searchQuery;
+  const status = document.getElementById('search-status');
+  status.hidden = !searching;
+  status.textContent = slots.length ? `${t('search_count')}: ${slots.length}` : t('search_empty');
 
   let cardIndex = 0;
   slots.forEach((slot) => {
@@ -198,7 +316,7 @@ function addToCart(slot) {
       image_url: slot.image_url,
       price: parseFloat(slot.price),
       qty: 1,
-      categoryCode: state.currentCategoryCode,
+      categoryCode: state.categories.find((c) => c.category_id === slot.category_id)?.code || state.currentCategoryCode,
     });
   }
   renderCartBadge();
@@ -292,6 +410,11 @@ function flashStatus(kind, message) {
 
 function resetKiosk() {
   state.cart = [];
+  state.searchQuery = '';
+  document.getElementById('product-search').value = '';
+  renderCategories();
+  renderProducts();
+  renderFeatured();
   renderCartBadge();
   renderCartDrawer();
 }
@@ -303,6 +426,7 @@ function setupLangToggle() {
     applyI18n();
     renderCategories();
     renderProducts();
+    renderFeatured();
     renderCartDrawer();
   }
   document.getElementById('lang-th').addEventListener('click', () => { setLang('th'); refresh(); });
@@ -393,6 +517,7 @@ document.getElementById('help-btn').addEventListener('click', () => {
     : 'Pick a category and tap an item to add it to your cart');
 });
 
+setupDiscovery();
 setupLangToggle();
 setupCartOverlay();
 setupPayOverlay();
